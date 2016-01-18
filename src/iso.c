@@ -1,7 +1,7 @@
 /*
  * Rufus: The Reliable USB Formatting Utility
  * ISO file extraction
- * Copyright © 2011-2015 Pete Batard <pete@akeo.ie>
+ * Copyright © 2011-2016 Pete Batard <pete@akeo.ie>
  * Based on libcdio's iso & udf samples:
  * Copyright © 2003-2014 Rocky Bernstein <rocky@gnu.org>
  *
@@ -62,7 +62,8 @@ typedef struct {
 
 RUFUS_IMG_REPORT img_report;
 int64_t iso_blocking_status = -1;
-BOOL enable_iso = TRUE, enable_joliet = TRUE, enable_rockridge = TRUE, preserve_timestamps = FALSE, has_ldlinux_c32;
+extern BOOL preserve_timestamps;
+BOOL enable_iso = TRUE, enable_joliet = TRUE, enable_rockridge = TRUE, has_ldlinux_c32;
 #define ISO_BLOCKING(x) do {x; iso_blocking_status++; } while(0)
 static const char* psz_extract_dir;
 static const char* bootmgr_efi_name = "bootmgr.efi";
@@ -75,7 +76,7 @@ static const char* install_wim_path = "/sources";
 static const char* install_wim_name[] = { "install.wim", "install.swm" };
 static const char* grub_dirname = "/boot/grub"; // NB: We don't support nonstandard config dir such as AROS' "/boot/pc/grub/"
 static const char* grub_cfg = "grub.cfg";
-static const char* syslinux_cfg[] = { "isolinux.cfg", "syslinux.cfg", "extlinux.conf"};
+static const char* syslinux_cfg[] = { "isolinux.cfg", "syslinux.cfg", "extlinux.conf" };
 static const char dot_isolinux_bin[] = ".\\isolinux.bin";
 static const char* isolinux_bin = &dot_isolinux_bin[2];
 static const char* pe_dirname[] = { "/i386", "/minint" };
@@ -227,7 +228,7 @@ static BOOL check_iso_props(const char* psz_dirname, int64_t i_file_length, cons
 		// Compute projected size needed
 		total_blocks += i_file_length/UDF_BLOCKSIZE;
 		// NB: ISO_BLOCKSIZE = UDF_BLOCKSIZE
-		if ((i_file_length != 0) && (i_file_length%ISO_BLOCKSIZE == 0))	// 
+		if ((i_file_length != 0) && (i_file_length%ISO_BLOCKSIZE == 0))
 			total_blocks++;
 		return TRUE;
 	}
@@ -428,17 +429,11 @@ static int udf_extract_files(udf_t *p_udf, udf_dirent_t *p_udf_dirent, const cha
 					goto out;
 				}
 				buf_size = (DWORD)MIN(i_file_length, i_read);
-				for (i=0; i<WRITE_RETRIES; i++) {
-					ISO_BLOCKING(r = WriteFile(file_handle, buf, buf_size, &wr_size, NULL));
-					if ((!r) || (buf_size != wr_size)) {
-						uprintf("  Error writing file: %s", WindowsErrorString());
-						if (i < WRITE_RETRIES-1)
-							uprintf("  RETRYING...\n");
-					} else {
-						break;
-					}
+				ISO_BLOCKING(r = WriteFileWithRetry(file_handle, buf, buf_size, &wr_size, WRITE_RETRIES));
+				if (!r) {
+					uprintf("  Error writing file: %s", WindowsErrorString());
+					goto out;
 				}
-				if (i >= WRITE_RETRIES) goto out;
 				i_file_length -= i_read;
 				if (nb_blocks++ % PROGRESS_THRESHOLD == 0)
 					UpdateProgress(OP_DOS, 100.0f*nb_blocks/total_blocks);
@@ -475,7 +470,7 @@ static int iso_extract_files(iso9660_t* p_iso, const char *psz_path)
 	HANDLE file_handle = NULL;
 	DWORD buf_size, wr_size, err;
 	EXTRACT_PROPS props;
-	BOOL s, is_symlink, is_identical;
+	BOOL is_symlink, is_identical;
 	int i_length, r = 1;
 	char tmp[128], psz_fullpath[MAX_PATH], *psz_basename, *psz_sanpath;
 	const char *psz_iso_name = &psz_fullpath[strlen(psz_extract_dir)];
@@ -483,7 +478,7 @@ static int iso_extract_files(iso9660_t* p_iso, const char *psz_path)
 	CdioListNode_t* p_entnode;
 	iso9660_stat_t *p_statbuf;
 	CdioList_t* p_entlist;
-	size_t i, j;
+	size_t i;
 	lsn_t lsn;
 	int64_t i_file_length;
 
@@ -581,17 +576,11 @@ static int iso_extract_files(iso9660_t* p_iso, const char *psz_path)
 					goto out;
 				}
 				buf_size = (DWORD)MIN(i_file_length, ISO_BLOCKSIZE);
-				for (j=0; j<WRITE_RETRIES; j++) {
-					ISO_BLOCKING(s = WriteFile(file_handle, buf, buf_size, &wr_size, NULL));
-					if ((!s) || (buf_size != wr_size)) {
-						uprintf("  Error writing file: %s", WindowsErrorString());
-						if (j < WRITE_RETRIES-1)
-							uprintf("  RETRYING...\n");
-					} else {
-						break;
-					}
+				ISO_BLOCKING(r = WriteFileWithRetry(file_handle, buf, buf_size, &wr_size, WRITE_RETRIES));
+				if (!r) {
+					uprintf("  Error writing file: %s", WindowsErrorString());
+					goto out;
 				}
-				if (j >= WRITE_RETRIES) goto out;
 				i_file_length -= ISO_BLOCKSIZE;
 				if (nb_blocks++ % PROGRESS_THRESHOLD == 0)
 					UpdateProgress(OP_DOS, 100.0f*nb_blocks/total_blocks);
@@ -648,7 +637,7 @@ BOOL ExtractISO(const char* src_iso, const char* dest_dir, BOOL scan)
 	FILE* fd;
 	int r = 1;
 	iso9660_t* p_iso = NULL;
-	udf_t* p_udf = NULL; 
+	udf_t* p_udf = NULL;
 	udf_dirent_t* p_udf_root;
 	char *tmp, *buf, *ext;
 	char path[MAX_PATH], path2[16];
@@ -689,7 +678,7 @@ BOOL ExtractISO(const char* src_iso, const char* dest_dir, BOOL scan)
 		iso_blocking_status = 0;
 	}
 
-	/* First try to open as UDF - fallback to ISO if it failed */
+	// First try to open as UDF - fallback to ISO if it failed
 	p_udf = udf_open(src_iso);
 	if (p_udf == NULL)
 		goto try_iso;
@@ -828,7 +817,7 @@ out:
 			// In case we have a WinPE 1.x based iso, we extract and parse txtsetup.sif
 			// during scan, to see if /minint was provided for OsLoadOptions, as it decides
 			// whether we should use 0x80 or 0x81 as the disk ID in the MBR
-			safe_sprintf(path, sizeof(path), "/%s/txtsetup.sif", 
+			safe_sprintf(path, sizeof(path), "/%s/txtsetup.sif",
 				basedir[((img_report.winpe&WINPE_I386) == WINPE_I386)?0:1]);
 			ExtractISOFile(src_iso, path, tmp_sif, FILE_ATTRIBUTE_NORMAL);
 			tmp = get_token_data_file("OsLoadOptions", tmp_sif);
@@ -917,9 +906,8 @@ int64_t ExtractISOFile(const char* iso, const char* iso_file, const char* dest_f
 	int64_t file_length, r = 0;
 	char buf[UDF_BLOCKSIZE];
 	DWORD buf_size, wr_size;
-	BOOL s;
 	iso9660_t* p_iso = NULL;
-	udf_t* p_udf = NULL; 
+	udf_t* p_udf = NULL;
 	udf_dirent_t *p_udf_root = NULL, *p_udf_file = NULL;
 	iso9660_stat_t *p_statbuf = NULL;
 	lsn_t lsn;
@@ -932,7 +920,7 @@ int64_t ExtractISOFile(const char* iso, const char* iso_file, const char* dest_f
 		goto out;
 	}
 
-	/* First try to open as UDF - fallback to ISO if it failed */
+	// First try to open as UDF - fallback to ISO if it failed
 	p_udf = udf_open(iso);
 	if (p_udf == NULL)
 		goto try_iso;
@@ -956,8 +944,7 @@ int64_t ExtractISOFile(const char* iso, const char* iso_file, const char* dest_f
 			goto out;
 		}
 		buf_size = (DWORD)MIN(file_length, read_size);
-		s = WriteFile(file_handle, buf, buf_size, &wr_size, NULL);
-		if ((!s) || (buf_size != wr_size)) {
+		if (!WriteFileWithRetry(file_handle, buf, buf_size, &wr_size, WRITE_RETRIES)) {
 			uprintf("  Error writing file %s: %s\n", dest_file, WindowsErrorString());
 			goto out;
 		}
@@ -988,8 +975,7 @@ try_iso:
 			goto out;
 		}
 		buf_size = (DWORD)MIN(file_length, ISO_BLOCKSIZE);
-		s = WriteFile(file_handle, buf, buf_size, &wr_size, NULL);
-		if ((!s) || (buf_size != wr_size)) {
+		if (!WriteFileWithRetry(file_handle, buf, buf_size, &wr_size, WRITE_RETRIES)) {
 			uprintf("  Error writing file %s: %s\n", dest_file, WindowsErrorString());
 			goto out;
 		}
@@ -1023,10 +1009,14 @@ uint32_t GetInstallWimVersion(const char* iso)
 	iso9660_stat_t *p_statbuf = NULL;
 
 	wim_path = safe_strdup(&img_report.install_wim_path[2]);
-	for (p = wim_path; p != 0; p++)
+	if (wim_path == NULL)
+		goto out;
+	// UDF indiscriminately accepts slash or backslash delimiters,
+	// but ISO-9660 requires slash
+	for (p = wim_path; *p != 0; p++)
 		if (*p == '\\') *p = '/';
 
-	/* First try to open as UDF - fallback to ISO if it failed */
+	// First try to open as UDF - fallback to ISO if it failed
 	p_udf = udf_open(iso);
 	if (p_udf == NULL)
 		goto try_iso;
@@ -1064,7 +1054,7 @@ try_iso:
 		goto out;
 	}
 	r = wim_header[3];
-	
+
 out:
 	if (p_statbuf != NULL)
 		safe_free(p_statbuf->rr.psz_symlink);

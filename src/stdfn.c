@@ -1,7 +1,7 @@
 /*
  * Rufus: The Reliable USB Formatting Utility
  * Standard Windows function calls
- * Copyright © 2013-2015 Pete Batard <pete@akeo.ie>
+ * Copyright © 2013-2016 Pete Batard <pete@akeo.ie>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ char WindowsVersionStr[128] = "Windows ";
  * [Knuth]            The Art of Computer Programming, part 3 (6.4)
  */
 
-/* 
+/*
  * For the used double hash method the table size has to be a prime. To
  * correct the user given table size we need a prime test.  This trivial
  * algorithm is adequate because the code is called only during init and
@@ -223,7 +223,7 @@ void GetWindowsVersion(void)
 	OSVERSIONINFOEXA vi, vi2;
 	const char* w = 0;
 	const char* w64 = "32 bit";
-	char* vptr;
+	char *vptr, build_number[10] = "";
 	size_t vlen;
 	unsigned major, minor;
 	ULONGLONG major_equal, minor_equal;
@@ -318,6 +318,17 @@ void GetWindowsVersion(void)
 		safe_sprintf(vptr, vlen, "%s SP%u %s", w, vi.wServicePackMajor, w64);
 	else
 		safe_sprintf(vptr, vlen, "%s %s", w, w64);
+
+	// Add the build number for Windows 8.0 and later
+	if (nWindowsVersion >= 0x62) {
+		GetRegistryKeyStr(REGKEY_HKLM, "Microsoft\\Windows NT\\CurrentVersion\\CurrentBuildNumber", build_number, sizeof(build_number));
+		if (build_number[0] != 0) {
+			safe_strcat(WindowsVersionStr, sizeof(WindowsVersionStr), " (Build ");
+			safe_strcat(WindowsVersionStr, sizeof(WindowsVersionStr), build_number);
+			safe_strcat(WindowsVersionStr, sizeof(WindowsVersionStr), ")");
+		}
+	}
+
 }
 
 /*
@@ -552,7 +563,7 @@ DWORD RunCommand(const char* cmd, const char* dir, BOOL log)
 			goto out;
 		}
 		// We need an inheritable pipe endpoint handle
-		DuplicateHandle(GetCurrentProcess(), hOutputWrite, GetCurrentProcess(), &hDupOutputWrite, 
+		DuplicateHandle(GetCurrentProcess(), hOutputWrite, GetCurrentProcess(), &hDupOutputWrite,
 			0L, TRUE, DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS);
 		si.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
 		si.wShowWindow = SW_HIDE;
@@ -605,6 +616,25 @@ BOOL CompareGUID(const GUID *guid1, const GUID *guid2) {
 		return (memcmp(guid1, guid2, sizeof(GUID)) == 0);
 	}
 	return FALSE;
+}
+
+static BOOL CALLBACK EnumFontFamExProc(const LOGFONTA *lpelfe,
+	const TEXTMETRICA *lpntme, DWORD FontType, LPARAM lParam)
+{
+	return TRUE;
+}
+
+BOOL IsFontAvailable(const char* font_name) {
+	LOGFONTA lf = { 0 };
+	HDC hDC = GetDC(hMainDialog);
+
+	if (font_name == NULL)
+		return FALSE;
+
+	lf.lfCharSet = DEFAULT_CHARSET;
+	safe_strcpy(lf.lfFaceName, LF_FACESIZE, font_name);
+
+	return EnumFontFamiliesExA(hDC, &lf, EnumFontFamExProc, 0, 0);
 }
 
 /*
@@ -666,9 +696,9 @@ DWORD WINAPI SetLGPThread(LPVOID param)
 	static DWORD original_val;
 	HKEY path_key = NULL, policy_key = NULL;
 	// MSVC is finicky about these ones => redefine them
-	const IID my_IID_IGroupPolicyObject = 
+	const IID my_IID_IGroupPolicyObject =
 		{ 0xea502723L, 0xa23d, 0x11d1, { 0xa7, 0xd3, 0x0, 0x0, 0xf8, 0x75, 0x71, 0xe3 } };
-	const IID my_CLSID_GroupPolicyObject = 
+	const IID my_CLSID_GroupPolicyObject =
 		{ 0xea502722L, 0xa23d, 0x11d1, { 0xa7, 0xd3, 0x0, 0x0, 0xf8, 0x75, 0x71, 0xe3 } };
 	GUID ext_guid = REGISTRY_EXTENSION_GUID;
 	// Can be anything really

@@ -1,7 +1,7 @@
 /*
  * Rufus: The Reliable USB Formatting Utility
  * Standard Dialog Routines (Browse for folder, About, etc)
- * Copyright © 2011-2015 Pete Batard <pete@akeo.ie>
+ * Copyright © 2011-2016 Pete Batard <pete@akeo.ie>
  *
  * Based on zadig_stdlg.c, part of libwdi: http://libwdi.akeo.ie
  *
@@ -63,6 +63,8 @@ static BOOL notification_is_question;
 static const notification_info* notification_more_info;
 static BOOL settings_commcheck = FALSE;
 static WNDPROC update_original_proc = NULL;
+
+extern loc_cmd* selected_locale;
 
 /*
  * We need a sub-callback to read the content of the edit box on exit and update
@@ -469,8 +471,8 @@ void CreateStatusBar(void)
 	SendMessage(hStatusToolbar, WM_SETFONT, (WPARAM)hFont, TRUE);
 	SendMessage(hStatusToolbar, TB_SETEXTENDEDSTYLE, 0, (LPARAM)TBSTYLE_EX_MIXEDBUTTONS);
 	SendMessage(hStatusToolbar, TB_SETIMAGELIST, 0, (LPARAM)NULL);
-	SendMessage(hStatusToolbar, TB_SETDISABLEDIMAGELIST, 0, (LPARAM)NULL);	
-	SendMessage(hStatusToolbar, TB_SETBITMAPSIZE, 0, MAKELONG(0,0));	
+	SendMessage(hStatusToolbar, TB_SETDISABLEDIMAGELIST, 0, (LPARAM)NULL);
+	SendMessage(hStatusToolbar, TB_SETBITMAPSIZE, 0, MAKELONG(0,0));
 
 	// Set our text
 	memset(tbbStatusToolbarButtons, 0, sizeof(TBBUTTON));
@@ -546,9 +548,10 @@ void ResizeMoveCtrl(HWND hDlg, HWND hCtrl, int dx, int dy, int dw, int dh, float
 	SIZE border;
 
 	GetWindowRect(hCtrl, &rect);
-	point.x = right_to_left_mode?rect.right:rect.left;
+	point.x = (right_to_left_mode && (hDlg != hCtrl))?rect.right:rect.left;
 	point.y = rect.top;
-	ScreenToClient(hDlg, &point);
+	if (hDlg != hCtrl)
+		ScreenToClient(hDlg, &point);
 	GetClientRect(hCtrl, &rect);
 
 	// If the control has any borders (dialog, edit box), take them into account
@@ -587,27 +590,31 @@ INT_PTR CALLBACK LicenseCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM 
  */
 INT_PTR CALLBACK AboutCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	int i;
+	int i, dy;
 	const int edit_id[2] = {IDC_ABOUT_BLURB, IDC_ABOUT_COPYRIGHTS};
 	char about_blurb[2048];
 	const char* edit_text[2] = {about_blurb, additional_copyrights};
 	HWND hEdit[2];
 	TEXTRANGEW tr;
 	ENLINK* enl;
+	RECT rect;
+	REQRESIZE* rsz;
 	wchar_t wUrl[256];
+	static BOOL resized_already = TRUE;
 
 	switch (message) {
 	case WM_INITDIALOG:
+		resized_already = FALSE;
 		// Execute dialog localization
 		apply_localization(IDD_ABOUTBOX, hDlg);
 		SetTitleBarIcon(hDlg);
 		CenterDialog(hDlg);
 		if (settings_commcheck)
 			ShowWindow(GetDlgItem(hDlg, IDC_ABOUT_UPDATES), SW_SHOW);
-		safe_sprintf(about_blurb, sizeof(about_blurb), about_blurb_format, lmprintf(MSG_174),
-			lmprintf(MSG_175, rufus_version[0], rufus_version[1], rufus_version[2]),
-			right_to_left_mode?"Akeo \\\\ Pete Batard 2011-2015 © Copyright":"Copyright © 2011-2015 Pete Batard / Akeo",
-			lmprintf(MSG_176), lmprintf(MSG_177), lmprintf(MSG_178));
+		safe_sprintf(about_blurb, sizeof(about_blurb), about_blurb_format, lmprintf(MSG_174|MSG_RTF),
+			lmprintf(MSG_175|MSG_RTF, rufus_version[0], rufus_version[1], rufus_version[2]),
+			right_to_left_mode?"Akeo \\\\ Pete Batard 2011-2016 © Copyright":"Copyright © 2011-2016 Pete Batard / Akeo",
+			lmprintf(MSG_176|MSG_RTF), lmprintf(MSG_177|MSG_RTF), lmprintf(MSG_178|MSG_RTF));
 		for (i=0; i<ARRAYSIZE(hEdit); i++) {
 			hEdit[i] = GetDlgItem(hDlg, edit_id[i]);
 			SendMessage(hEdit[i], EM_AUTOURLDETECT, 1, 0);
@@ -617,14 +624,26 @@ INT_PTR CALLBACK AboutCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
 			 * http://blog.kowalczyk.info/article/eny/Setting-unicode-rtf-text-in-rich-edit-control.html */
 			SendMessageA(hEdit[i], EM_SETTEXTEX, (WPARAM)&friggin_microsoft_unicode_amateurs, (LPARAM)edit_text[i]);
 			SendMessage(hEdit[i], EM_SETSEL, -1, -1);
-			SendMessage(hEdit[i], EM_SETEVENTMASK, 0, ENM_LINK);
+			SendMessage(hEdit[i], EM_SETEVENTMASK, 0, ENM_LINK|((i==0)?ENM_REQUESTRESIZE:0));
 			SendMessage(hEdit[i], EM_SETBKGNDCOLOR, 0, (LPARAM)GetSysColor(COLOR_BTNFACE));
 		}
 		// Need to send an explicit SetSel to avoid being positioned at the end of richedit control when tabstop is used
 		SendMessage(hEdit[1], EM_SETSEL, 0, 0);
+		SendMessage(hEdit[0], EM_REQUESTRESIZE, 0, 0);
 		break;
 	case WM_NOTIFY:
 		switch (((LPNMHDR)lParam)->code) {
+		case EN_REQUESTRESIZE:
+			if (!resized_already) {
+				resized_already = TRUE;
+				GetWindowRect(GetDlgItem(hDlg, edit_id[0]), &rect);
+				dy = rect.bottom - rect.top;
+				rsz = (REQRESIZE *)lParam;
+				dy -= rsz->rc.bottom - rsz->rc.top;
+				ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, edit_id[0]), 0, 0, 0, -dy, 1.0f);
+				ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, edit_id[1]), 0, -dy, 0, dy, 1.0f);
+			}
+			break;
 		case EN_LINK:
 			enl = (ENLINK*) lParam;
 			if (enl->msg == WM_LBUTTONUP) {
@@ -704,7 +723,7 @@ INT_PTR CALLBACK NotificationCallback(HWND hDlg, UINT message, WPARAM wParam, LP
 		SendMessage(GetDlgItem(hDlg, IDNO), WM_SETFONT, (WPARAM)hDlgFont, MAKELPARAM(TRUE, 0));
 
 		apply_localization(IDD_NOTIFICATION, hDlg);
-		background_brush = CreateSolidBrush(GetSysColor(COLOR_3DHILIGHT));
+		background_brush = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
 		separator_brush = CreateSolidBrush(GetSysColor(COLOR_3DLIGHT));
 		SetTitleBarIcon(hDlg);
 		CenterDialog(hDlg);
@@ -847,7 +866,7 @@ INT_PTR CALLBACK SelectionCallback(HWND hDlg, UINT message, WPARAM wParam, LPARA
 		SendMessage(GetDlgItem(hDlg, IDNO), WM_SETFONT, (WPARAM)hDlgFont, MAKELPARAM(TRUE, 0));
 
 		apply_localization(IDD_SELECTION, hDlg);
-		background_brush = CreateSolidBrush(GetSysColor(COLOR_3DHILIGHT));
+		background_brush = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
 		separator_brush = CreateSolidBrush(GetSysColor(COLOR_3DLIGHT));
 		SetTitleBarIcon(hDlg);
 		CenterDialog(hDlg);
@@ -878,7 +897,6 @@ INT_PTR CALLBACK SelectionCallback(HWND hDlg, UINT message, WPARAM wParam, LPARA
 		ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDC_SELECTION_CHOICE2), 0, dh, 0, 0, 1.0f);
 		ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDOK), 0, dh, 0, 0, 1.0f);
 		ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDCANCEL), 0, dh, 0, 0, 1.0f);
-		CenterDialog(hDlg);
 
 		// Set the radio selection
 		Button_SetCheck(GetDlgItem(hDlg, IDC_SELECTION_CHOICE1), BST_CHECKED);
@@ -1083,7 +1101,7 @@ BOOL IsShown(HWND hDlg)
 
 /* Compute the width of a dropdown list entry */
 LONG GetEntryWidth(HWND hDropDown, const char *entry)
-{ 
+{
 	HDC hDC;
 	HFONT hFont, hDefFont = NULL;
 	SIZE size;
@@ -1092,7 +1110,7 @@ LONG GetEntryWidth(HWND hDropDown, const char *entry)
 	hFont = (HFONT)SendMessage(hDropDown, WM_GETFONT, 0, 0);
 	if (hFont != NULL)
 		hDefFont = (HFONT)SelectObject(hDC, hFont);
-	
+
 	if (!GetTextExtentPointU(hDC, entry, &size))
 		size.cx = 0;
 
@@ -1182,9 +1200,9 @@ DECLARE_INTERFACE_(my_ITaskbarList3, IUnknown) {
 	STDMETHOD (SetThumbnailTooltip) (THIS_ HWND hwnd, LPCWSTR pszTip) PURE;
 	STDMETHOD (SetThumbnailClip) (THIS_ HWND hwnd, RECT *prcClip) PURE;
 };
-const IID my_IID_ITaskbarList3 = 
+const IID my_IID_ITaskbarList3 =
 	{ 0xea1afb91, 0x9e28, 0x4b86, { 0x90, 0xe9, 0x9e, 0x9f, 0x8a, 0x5e, 0xef, 0xaf } };
-const IID my_CLSID_TaskbarList = 
+const IID my_CLSID_TaskbarList =
 	{ 0x56fdf344, 0xfd6d, 0x11d0, { 0x95, 0x8a ,0x0, 0x60, 0x97, 0xc9, 0xa0 ,0x90 } };
 
 static my_ITaskbarList3* ptbl = NULL;
@@ -1226,13 +1244,18 @@ BOOL SetTaskbarProgressValue(ULONGLONG ullCompleted, ULONGLONG ullTotal)
  */
 INT_PTR CALLBACK UpdateCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	int dy;
+	RECT rect;
+	REQRESIZE* rsz;
 	HWND hPolicy;
 	static HWND hFrequency, hBeta;
 	int32_t freq;
 	char update_policy_text[4096];
+	static BOOL resized_already = TRUE;
 
 	switch (message) {
 	case WM_INITDIALOG:
+		resized_already = FALSE;
 		hUpdatesDlg = hDlg;
 		apply_localization(IDD_UPDATE_POLICY, hDlg);
 		SetTitleBarIcon(hDlg);
@@ -1270,13 +1293,34 @@ INT_PTR CALLBACK UpdateCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 		IGNORE_RETVAL(ComboBox_SetCurSel(hBeta, ReadSettingBool(SETTING_INCLUDE_BETAS)?0:1));
 		hPolicy = GetDlgItem(hDlg, IDC_POLICY);
 		SendMessage(hPolicy, EM_AUTOURLDETECT, 1, 0);
-		safe_sprintf(update_policy_text, sizeof(update_policy_text), update_policy, lmprintf(MSG_179),
-			lmprintf(MSG_180), lmprintf(MSG_181), lmprintf(MSG_182), lmprintf(MSG_183), lmprintf(MSG_184),
-			lmprintf(MSG_185), lmprintf(MSG_186));
+		safe_sprintf(update_policy_text, sizeof(update_policy_text), update_policy, lmprintf(MSG_179|MSG_RTF),
+			lmprintf(MSG_180|MSG_RTF), lmprintf(MSG_181|MSG_RTF), lmprintf(MSG_182|MSG_RTF), lmprintf(MSG_183|MSG_RTF),
+			lmprintf(MSG_184|MSG_RTF), lmprintf(MSG_185|MSG_RTF), lmprintf(MSG_186|MSG_RTF));
 		SendMessageA(hPolicy, EM_SETTEXTEX, (WPARAM)&friggin_microsoft_unicode_amateurs, (LPARAM)update_policy_text);
 		SendMessage(hPolicy, EM_SETSEL, -1, -1);
-		SendMessage(hPolicy, EM_SETEVENTMASK, 0, ENM_LINK);
+		SendMessage(hPolicy, EM_SETEVENTMASK, 0, ENM_LINK|ENM_REQUESTRESIZE);
 		SendMessageA(hPolicy, EM_SETBKGNDCOLOR, 0, (LPARAM)GetSysColor(COLOR_BTNFACE));
+		SendMessage(hPolicy, EM_REQUESTRESIZE, 0, 0);
+		break;
+	case WM_NOTIFY:
+		if ((((LPNMHDR)lParam)->code == EN_REQUESTRESIZE) && (!resized_already)) {
+			resized_already = TRUE;
+			hPolicy = GetDlgItem(hDlg, IDC_POLICY);
+			GetWindowRect(hPolicy, &rect);
+			dy = rect.bottom - rect.top;
+			rsz = (REQRESIZE *)lParam;
+			dy -= rsz->rc.bottom - rsz->rc.top + 6;	// add the border
+			ResizeMoveCtrl(hDlg, hDlg, 0, 0, 0, -dy, 1.0f);
+			ResizeMoveCtrl(hDlg, hPolicy, 0, 0, 0, -dy, 1.0f);
+			ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDS_UPDATE_SETTINGS_GRP), 0, -dy, 0, 0, 1.0f);
+			ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDS_UPDATE_FREQUENCY_TXT), 0, -dy, 0, 0, 1.0f);
+			ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDC_UPDATE_FREQUENCY), 0, -dy, 0, 0, 1.0f);
+			ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDS_INCLUDE_BETAS_TXT), 0, -dy, 0, 0, 1.0f);
+			ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDC_INCLUDE_BETAS), 0, -dy, 0, 0, 1.0f);
+			ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDS_CHECK_NOW_GRP), 0, -dy, 0, 0, 1.0f);
+			ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDC_CHECK_NOW), 0, -dy, 0, 0, 1.0f);
+			ResizeMoveCtrl(hDlg, GetDlgItem(hDlg, IDCANCEL), 0, -dy, 0, 0, 1.0f);
+		}
 		break;
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
@@ -1401,11 +1445,11 @@ INT_PTR CALLBACK update_subclass_callback(HWND hDlg, UINT message, WPARAM wParam
  */
 INT_PTR CALLBACK NewVersionCallback(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	int i;
-	HWND hNotes;
 	char cmdline[] = APPLICATION_NAME " -w 150";
 	static char* filepath = NULL;
 	static int download_status = 0;
+	LONG i;
+	HWND hNotes;
 	STARTUPINFOA si;
 	PROCESS_INFORMATION pi;
 	HFONT hyperlink_font = NULL;
@@ -1424,7 +1468,7 @@ INT_PTR CALLBACK NewVersionCallback(HWND hDlg, UINT message, WPARAM wParam, LPAR
 		SendMessageA(hNotes, EM_SETTEXTEX, (WPARAM)&friggin_microsoft_unicode_amateurs, (LPARAM)update.release_notes);
 		SendMessage(hNotes, EM_SETSEL, -1, -1);
 		SendMessage(hNotes, EM_SETEVENTMASK, 0, ENM_LINK);
-		SetWindowTextU(GetDlgItem(hDlg, IDC_YOUR_VERSION), lmprintf(MSG_018, 
+		SetWindowTextU(GetDlgItem(hDlg, IDC_YOUR_VERSION), lmprintf(MSG_018,
 			rufus_version[0], rufus_version[1], rufus_version[2]));
 		SetWindowTextU(GetDlgItem(hDlg, IDC_LATEST_VERSION), lmprintf(MSG_019,
 			update.version[0], update.version[1], update.version[2]));
@@ -1463,12 +1507,15 @@ INT_PTR CALLBACK NewVersionCallback(HWND hDlg, UINT message, WPARAM wParam, LPAR
 				break;
 			case 2:		// Launch newer version and close this one
 				Sleep(1000);	// Add a delay on account of antivirus scanners
+
+				if (ValidateSignature(hDlg, filepath) != NO_ERROR)
+					break;
+
 				memset(&si, 0, sizeof(si));
 				memset(&pi, 0, sizeof(pi));
 				si.cb = sizeof(si);
 				if (!CreateProcessU(filepath, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
 					PrintInfo(0, MSG_214);
-					// TODO: produce a message box and add a retry, as the file may be scanned by the Antivirus
 					uprintf("Failed to launch new application: %s\n", WindowsErrorString());
 				} else {
 					PrintInfo(0, MSG_213);
@@ -1523,16 +1570,11 @@ void DownloadNewVersion(void)
 
 void SetTitleBarIcon(HWND hDlg)
 {
-	HDC hDC;
 	int i16, s16, s32;
 	HICON hSmallIcon, hBigIcon;
 
 	// High DPI scaling
 	i16 = GetSystemMetrics(SM_CXSMICON);
-	hDC = GetDC(hDlg);
-	fScale = GetDeviceCaps(hDC, LOGPIXELSX) / 96.0f;
-	if (hDC != NULL)
-		ReleaseDC(hDlg, hDC);
 	// Adjust icon size lookup
 	s16 = i16;
 	s32 = (int)(32.0f*fScale);
@@ -1622,6 +1664,18 @@ LPCDLGTEMPLATE GetDialogTemplate(int Dialog_ID)
 		dwBuf = (DWORD*)rcTemplate;
 		dwBuf[2] = WS_EX_RTLREADING | WS_EX_APPWINDOW | WS_EX_LAYOUTRTL;
 	}
+
+	// All our dialogs are set to use 'Segoe UI Symbol' by default:
+	// 1. So that we can replace the font name with 'MS Shell Dlg' (XP) or 'Segoe UI'
+	// 2. So that Thai displays properly on RTF controls as it won't work with regular
+	// 'Segoe UI'... but Cyrillic won't work with 'Segoe UI Symbol'
+
+	// If 'Segoe UI Symbol' is available, and we are using Thai, we're done here
+	if (IsFontAvailable("Segoe UI Symbol") && (selected_locale != NULL)
+		&& (safe_strcmp(selected_locale->txt[0], "th-TH") == 0))
+		return rcTemplate;
+
+	// 'Segoe UI Symbol' cannot be used => Fall back to the best we have
 	wBuf = (WCHAR*)rcTemplate;
 	wBuf = &wBuf[14];	// Move to class name
 	// Skip class name and title
@@ -1640,10 +1694,11 @@ LPCDLGTEMPLATE GetDialogTemplate(int Dialog_ID)
 		// We can't simply zero the characters we don't want, as the size of the font
 		// string determines the next item lookup. So we must memmove the remaining of
 		// our buffer. Oh, and those items are DWORD aligned.
-		if (nWindowsVersion <= WINDOWS_XP) {
-			wcscpy(wBuf, L"MS Shell Dlg");
-		} else {
+		if (IsFontAvailable("Segoe UI")) {
+			// 'Segoe UI Symbol' -> 'Segoe UI'
 			wBuf[8] = 0;
+		} else {
+			wcscpy(wBuf, L"MS Shell Dlg");
 		}
 		len = wcslen(wBuf);
 		wBuf[len + 1] = 0;

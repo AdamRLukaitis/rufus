@@ -1,6 +1,6 @@
 /*
  * Rufus: The Reliable USB Formatting Utility
- * Copyright © 2011-2015 Pete Batard <pete@akeo.ie>
+ * Copyright © 2011-2016 Pete Batard <pete@akeo.ie>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,8 +41,13 @@
 #define APPLICATION_NAME            "Rufus"
 #define COMPANY_NAME                "Akeo Consulting"
 #define STR_NO_LABEL                "NO_LABEL"
-#define LEFT_TO_RIGHT_MARK          "‎"			// Yes, there is a character between the quotes!
-#define RIGHT_TO_LEFT_MARK          "‏"			// Yes, there is a character between the quotes!
+// Yes, there is a character between these seemingly empty quotes!
+#define LEFT_TO_RIGHT_MARK          "‎"
+#define RIGHT_TO_LEFT_MARK          "‏"
+#define LEFT_TO_RIGHT_EMBEDDING     "‪"
+#define RIGHT_TO_LEFT_EMBEDDING     "‫"
+#define POP_DIRECTIONAL_FORMATTING  "‬"
+#define RIGHT_TO_LEFT_OVERRIDE      "‮"
 #define DRIVE_ACCESS_TIMEOUT        15000		// How long we should retry drive access (in ms)
 #define DRIVE_ACCESS_RETRIES        60			// How many times we should retry
 #define DRIVE_INDEX_MIN             0x00000080
@@ -81,7 +86,7 @@
 #define STRINGIFY(x)                #x
 #endif
 #define IsChecked(CheckBox_ID)      (IsDlgButtonChecked(hMainDialog, CheckBox_ID) == BST_CHECKED)
-#define MB_IS_RTL                   (right_to_left_mode?MB_RTLREADING:0)
+#define MB_IS_RTL                   (right_to_left_mode?MB_RTLREADING|MB_RIGHT:0)
 #define CHECK_FOR_USER_CANCEL       if (IS_ERROR(FormatStatus)) goto out
 
 #define safe_free(p) do {free((void*)p); p = NULL;} while(0)
@@ -98,6 +103,7 @@
 #define safe_strnicmp(str1, str2, count) _strnicmp(((str1==NULL)?"<NULL>":str1), ((str2==NULL)?"<NULL>":str2), count)
 #define safe_closehandle(h) do {if ((h != INVALID_HANDLE_VALUE) && (h != NULL)) {CloseHandle(h); h = INVALID_HANDLE_VALUE;}} while(0)
 #define safe_unlockclose(h) do {if ((h != INVALID_HANDLE_VALUE) && (h != NULL)) {UnlockDrive(h); CloseHandle(h); h = INVALID_HANDLE_VALUE;}} while(0)
+#define safe_release_dc(hDlg, hDC) do {if ((hDC != INVALID_HANDLE_VALUE) && (hDC != NULL)) {ReleaseDC(hDlg, hDC); hDC = NULL;}} while(0)
 #define safe_sprintf(dst, count, ...) do {_snprintf(dst, count, __VA_ARGS__); (dst)[(count)-1] = 0; } while(0)
 #define static_sprintf(dst, ...) safe_sprintf(dst, sizeof(dst), __VA_ARGS__)
 #define safe_strlen(str) ((((char*)str)==NULL)?0:strlen(str))
@@ -114,6 +120,7 @@ extern void _uprintf(const char *format, ...);
 #define vuprintf(...) if (verbose) _uprintf(__VA_ARGS__)
 #define vvuprintf(...) if (verbose > 1) _uprintf(__VA_ARGS__)
 #define suprintf(...) if (!bSilent) _uprintf(__VA_ARGS__)
+#define uuprintf(...) if (usb_debug) _uprintf(__VA_ARGS__)
 #ifdef _DEBUG
 #define duprintf(...) _uprintf(__VA_ARGS__)
 #else
@@ -315,7 +322,7 @@ typedef struct ext_t {
 } ext_t;
 
 #ifndef __VA_GROUP__
-#define __VA_GROUP__(...)  __VA_ARGS__ 
+#define __VA_GROUP__(...)  __VA_ARGS__
 #endif
 #define EXT_X(prefix, ...) const char* _##prefix##_x[] = { __VA_ARGS__ }
 #define EXT_D(prefix, ...) const char* _##prefix##_d[] = { __VA_ARGS__ }
@@ -375,6 +382,7 @@ extern char WindowsVersionStr[128];
 extern char embedded_sl_version_str[2][12];
 extern RUFUS_UPDATE update;
 extern int dialog_showing;
+extern WORD selected_langid;
 
 /*
  * Shared prototypes
@@ -447,6 +455,10 @@ extern BOOL IsBootableImage(const char* path);
 extern BOOL AppendVHDFooter(const char* vhd_path);
 extern int IsHDD(DWORD DriveIndex, uint16_t vid, uint16_t pid, const char* strid);
 extern void LostTranslatorCheck(void);
+extern LONG ValidateSignature(HWND hDlg, const char* path);
+extern BOOL IsFontAvailable(const char* font_name);
+extern BOOL WriteFileWithRetry(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite,
+	LPDWORD lpNumberOfBytesWritten, DWORD nNumRetries);
 
 DWORD WINAPI FormatThread(void* param);
 DWORD WINAPI SaveImageThread(void* param);

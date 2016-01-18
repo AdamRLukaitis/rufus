@@ -128,11 +128,12 @@
 #define IDC_DOWNLOAD_URL                1070
 #define IDC_MD5                         1071
 #define IDC_SHA1                        1072
-#define IDC_SELECTION_ICON              1073
-#define IDC_SELECTION_TEXT              1074
-#define IDC_SELECTION_LINE              1075
-#define IDC_SELECTION_CHOICE1           1076
-#define IDC_SELECTION_CHOICE2           1077
+#define IDC_SHA256                      1073
+#define IDC_SELECTION_ICON              1074
+#define IDC_SELECTION_TEXT              1075
+#define IDC_SELECTION_LINE              1076
+#define IDC_SELECTION_CHOICE1           1077
+#define IDC_SELECTION_CHOICE2           1078
 #define IDS_DEVICE_TXT                  2000
 #define IDS_PARTITION_TYPE_TXT          2001
 #define IDS_FILESYSTEM_TXT              2002
@@ -428,7 +429,15 @@
 #define MSG_279                         3279
 #define MSG_280                         3280
 #define MSG_281                         3281
-#define MSG_MAX                         3282
+#define MSG_282                         3282
+#define MSG_283                         3283
+#define MSG_284                         3284
+#define MSG_285                         3285
+#define MSG_286                         3286
+#define MSG_287                         3287
+#define MSG_288                         3288
+#define MSG_289                         3289
+#define MSG_MAX                         3290
 
 // Next default values for new objects
 // 
@@ -437,7 +446,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        505
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1078
+#define _APS_NEXT_CONTROL_VALUE         1079
 #define _APS_NEXT_SYMED_VALUE           4000
 #endif
 #endif

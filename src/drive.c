@@ -1,7 +1,7 @@
 /*
  * Rufus: The Reliable USB Formatting Utility
  * Drive access function calls
- * Copyright © 2011-2015 Pete Batard <pete@akeo.ie>
+ * Copyright © 2011-2016 Pete Batard <pete@akeo.ie>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@
 #include "localization.h"
 
 #if !defined(PARTITION_BASIC_DATA_GUID)
-const GUID PARTITION_BASIC_DATA_GUID = 
+const GUID PARTITION_BASIC_DATA_GUID =
 	{ 0xebd0a0a2L, 0xb9e5, 0x4433, {0x87, 0xc0, 0x68, 0xb6, 0xb7, 0x26, 0x99, 0xc7} };
 #endif
 #if !defined(PARTITION_MSFT_RESERVED_GUID)
@@ -63,7 +63,7 @@ size_t uefi_ntfs_size = 0;
  * See https://github.com/pbatard/rufus/issues/386.
  *
  * Reverse engineering diskpart and mountvol indicates that the former uses the IVdsService
- * ClearFlags()/SetFlags() to set VDS_SVF_AUTO_MOUNT_OFF whereas mountvol on uses 
+ * ClearFlags()/SetFlags() to set VDS_SVF_AUTO_MOUNT_OFF whereas mountvol on uses
  * IOCTL_MOUNTMGR_SET_AUTO_MOUNT on "\\\\.\\MountPointManager".
  * As the latter is MUCH simpler this is what we'll use too
  */
@@ -156,7 +156,7 @@ out:
 	return hDrive;
 }
 
-/* 
+/*
  * Return the path to access the physical drive, or NULL on error.
  * The string is allocated and must be freed (to ensure concurrent access)
  */
@@ -172,7 +172,7 @@ out:
 	return (success)?safe_strdup(physical_name):NULL;
 }
 
-/* 
+/*
  * Return a handle to the physical drive identified by DriveIndex
  */
 HANDLE GetPhysicalHandle(DWORD DriveIndex, BOOL bWriteAccess, BOOL bLockDrive)
@@ -295,7 +295,7 @@ BOOL WaitForLogical(DWORD DriveIndex)
 	return FALSE;
 }
 
-/* 
+/*
  * Obtain a handle to the first logical volume on the disk identified by DriveIndex
  * Returns INVALID_HANDLE_VALUE on error or NULL if no logical path exists (typical
  * of unpartitioned drives)
@@ -561,7 +561,7 @@ BOOL IsMediaPresent(DWORD DriveIndex)
 
 	hPhysical = GetPhysicalHandle(DriveIndex, FALSE, FALSE);
 	r = DeviceIoControl(hPhysical, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
-			NULL, 0, geometry, sizeof(geometry), &size, NULL) || (size <= 0);
+			NULL, 0, geometry, sizeof(geometry), &size, NULL) && (size > 0);
 	safe_closehandle(hPhysical);
 	return r;
 }
@@ -576,10 +576,10 @@ const struct {int (*fn)(FILE *fp); char* str;} known_mbr[] = {
 	{ is_rufus_mbr, "Rufus" },
 	{ is_syslinux_mbr, "Syslinux" },
 	{ is_reactos_mbr, "ReactOS" },
-	{ is_kolibri_mbr, "KolibriOS" },
-	{ is_grub_mbr, "Grub4DOS" },
+	{ is_kolibrios_mbr, "KolibriOS" },
+	{ is_grub4dos_mbr, "Grub4DOS" },
 	{ is_grub2_mbr, "Grub 2.0" },
-	{ is_zero_mbr, "Zeroed" },
+	{ is_zero_mbr_not_including_disk_signature_or_copy_protect, "Zeroed" },
 };
 
 // Returns TRUE if the drive seems bootable, FALSE otherwise
@@ -591,10 +591,7 @@ BOOL AnalyzeMBR(HANDLE hPhysicalDrive, const char* TargetName)
 	int i;
 
 	fake_fd._handle = (char*)hPhysicalDrive;
-	fake_fd._sector_size = SelectedDrive.Geometry.BytesPerSector;
-	// Might need correction, as we use this method for images and we may not have a target UFD yet
-	if (fake_fd._sector_size < 512)
-		fake_fd._sector_size = 512;
+	set_bytes_per_sector(SelectedDrive.Geometry.BytesPerSector);
 
 	if (!is_br(fp)) {
 		uprintf("%s does not have an x86 %s\n", TargetName, mbr_name);
@@ -630,7 +627,7 @@ BOOL AnalyzePBR(HANDLE hLogicalVolume)
 	int i;
 
 	fake_fd._handle = (char*)hLogicalVolume;
-	fake_fd._sector_size = SelectedDrive.Geometry.BytesPerSector;
+	set_bytes_per_sector(SelectedDrive.Geometry.BytesPerSector);
 
 	if (!is_br(fp)) {
 		uprintf("Volume does not have an x86 %s\n", pbr_name);
@@ -707,7 +704,7 @@ BOOL GetDrivePartitionData(DWORD DriveIndex, char* FileSystemName, DWORD FileSys
 	suprintf("Cylinders: %" PRIi64 ", TracksPerCylinder: %d, SectorsPerTrack: %d\n",
 		DiskGeometry->Geometry.Cylinders, DiskGeometry->Geometry.TracksPerCylinder, DiskGeometry->Geometry.SectorsPerTrack);
 
-	r = DeviceIoControl(hPhysical, IOCTL_DISK_GET_DRIVE_LAYOUT_EX, 
+	r = DeviceIoControl(hPhysical, IOCTL_DISK_GET_DRIVE_LAYOUT_EX,
 			NULL, 0, layout, sizeof(layout), &size, NULL );
 	if (!r || size <= 0) {
 		suprintf("Could not get layout for drive 0x%02x: %s\n", DriveIndex, WindowsErrorString());
@@ -716,7 +713,7 @@ BOOL GetDrivePartitionData(DWORD DriveIndex, char* FileSystemName, DWORD FileSys
 	}
 
 #if defined(__GNUC__)
-// GCC 4.9 bug us about the fact that MS defined an expandable array as array[1]
+// GCC 4.9 bugs us about the fact that MS defined an expandable array as array[1]
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 	switch (DriveLayout->PartitionStyle) {
@@ -941,7 +938,7 @@ char* AltMountVolume(const char* drive_name, uint8_t part_nr)
 		uprintf("Could not find partition mapping for %s", target[0]);
 		goto out;
 	}
-	
+
 	while ((--i > 0) && (isdigit(p[i])));
 	p[++i] = '0' + part_nr;
 	p[++i] = 0;
@@ -1068,7 +1065,7 @@ BOOL CreatePartition(HANDLE hDrive, int partition_style, int file_system, BOOL m
 			bufsize = 65536;	// 64K should be enough for everyone
 			buffer = calloc(bufsize, 1);
 			if (buffer != NULL) {
-				if ((!WriteFile(hDrive, buffer, bufsize, &size, NULL)) || (size != bufsize))
+				if (!WriteFileWithRetry(hDrive, buffer, bufsize, &size, WRITE_RETRIES))
 					uprintf("  Could not zero MSR: %s", WindowsErrorString());
 				free(buffer);
 			}
@@ -1168,12 +1165,8 @@ BOOL CreatePartition(HANDLE hDrive, int partition_style, int file_system, BOOL m
 				uprintf("Could not access uefi-ntfs.img");
 				return FALSE;
 			}
-			r = WriteFile(hDrive, buffer, bufsize, &size, NULL);
-			if ((!r) || (size != bufsize)) {
-				if (!r)
-					uprintf("Write error: %s", WindowsErrorString());
-				else
-					uprintf("Write error: Wrote %d bytes, expected %d bytes\n", size, bufsize);
+			if(!WriteFileWithRetry(hDrive, buffer, bufsize, &size, WRITE_RETRIES)) {
+				uprintf("Write error: %s", WindowsErrorString());
 				return FALSE;
 			}
 		}

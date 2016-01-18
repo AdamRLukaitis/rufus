@@ -66,7 +66,7 @@ extern "C" {
 #define isdigitU(c) isdigit((unsigned char)(c))
 #define isspaceU(c) isspace((unsigned char)(c))
 #define isxdigitU(c) isxdigit((unsigned char)(c))
-// NB: other issomething() calls are not implemented as they may require multibyte UTF-8 sequences to be converted 
+// NB: other issomething() calls are not implemented as they may require multibyte UTF-8 sequences to be converted
 
 #define sfree(p) do {if (p != NULL) {free((void*)(p)); p = NULL;}} while(0)
 #define wconvert(p)     wchar_t* w ## p = utf8_to_wchar(p)
@@ -202,6 +202,20 @@ static __inline int MessageBoxU(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT
 	wconvert(lpText);
 	wconvert(lpCaption);
 	ret = MessageBoxW(hWnd, wlpText, wlpCaption, uType);
+	err = GetLastError();
+	wfree(lpText);
+	wfree(lpCaption);
+	SetLastError(err);
+	return ret;
+}
+
+static __inline int MessageBoxExU(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType, WORD wLanguageId)
+{
+	int ret;
+	DWORD err = ERROR_INVALID_DATA;
+	wconvert(lpText);
+	wconvert(lpCaption);
+	ret = MessageBoxExW(hWnd, wlpText, wlpCaption, uType, wLanguageId);
 	err = GetLastError();
 	wfree(lpText);
 	wfree(lpCaption);
@@ -768,6 +782,37 @@ static __inline int _chdirU(const char *dirname)
 	return ret;
 }
 
+#if defined(_WIN32_WINNT) && (_WIN32_WINNT <= 0x501)
+static __inline FILE* fopenU(const char* filename, const char* mode)
+{
+	FILE* ret = NULL;
+	wconvert(filename);
+	wconvert(mode);
+	ret = _wfopen(wfilename, wmode);
+	wfree(filename);
+	wfree(mode);
+	return ret;
+}
+
+static __inline int _openU(const char *filename, int oflag, int pmode)
+{
+	int ret = -1;
+	wconvert(filename);
+	ret = _wopen(wfilename, oflag, pmode);
+	wfree(filename);
+	return ret;
+}
+
+// returned UTF-8 string must be freed
+static __inline char* getenvU(const char* varname)
+{
+	wconvert(varname);
+	char* ret;
+	ret = wchar_to_utf8(_wgetenv(wvarname));
+	wfree(varname);
+	return ret;
+}
+#else
 static __inline FILE* fopenU(const char* filename, const char* mode)
 {
 	FILE* ret = NULL;
@@ -785,9 +830,9 @@ static __inline int _openU(const char *filename, int oflag , int pmode)
 	int shflag = _SH_DENYNO;
 	wconvert(filename);
 	// Try to match the share flag to the oflag
-	if (oflag & _O_RDONLY)
+	if ((oflag & 0x03) == _O_RDONLY)
 		shflag = _SH_DENYWR;
-	else if (oflag & _O_WRONLY)
+	else if ((oflag & 0x03) == _O_WRONLY)
 		shflag = _SH_DENYRD;
 	_wsopen_s(&ret, wfilename, oflag, shflag, pmode);
 	wfree(filename);
@@ -807,6 +852,7 @@ static __inline char* getenvU(const char* varname)
 	wfree(varname);
 	return ret;
 }
+#endif
 
 static __inline int _mkdirU(const char* dirname)
 {

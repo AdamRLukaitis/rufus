@@ -1,3 +1,31 @@
+o Version 2.6 (2015.12.22)
+    Add Serbian (Latin) translation, courtesy of Ivan Strugar
+    Add a cheat mode to zero a device (Alt-Z)
+    Fix dual BIOS/UEFI mode not being disabled once enabled (Alt-E)
+    Fix a crash when Syslinux downloaded files are modified by a firewall
+    Fix FAT32 not being disabled for Windows ISOs in BIOS/CSM mode
+    Additional translation updates
+
+o Version 2.5 (2015.10.26)
+    Add SHA-256 checksum verification
+    Add a cheat mode to disable exclusive USB drive locking (Alt-,)
+    Add digital signature check on update downloads
+    Add Azerbaijani translation, courtesy of Elvin Məlikov
+    Add Persian translation, courtesy of Seyed Zia Azimi (ziaa)
+    Fix an issue where the update settings dialog may not display properly
+    Report Windows build number in the log (Windows 8 or later)
+    Many localization improvements and fixes, especially for right-to-left languages
+    Additional translation updates
+
+o Version 2.4 (2015.09.27)
+    Allow some settings and cheat modes to be persisted between sessions
+    Fix multiple issues with flash drive detection
+    Fix listing of drives that contain no media
+    Fix cheat mode to save the current USB to *uncompressed* VHD (Alt-V)
+    Fix an UI scaling issue with high DPI displays for non English languages
+    Update most of the translations
+    Additional cosmetic improvements
+
 o Version 2.3 (2015.08.28)
     Detect ISOHybrid images and ask users how they should be written
     Add MD5/SHA1 checksum verification ('#' button on the status bar)

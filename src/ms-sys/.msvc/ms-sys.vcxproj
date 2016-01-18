@@ -46,6 +46,7 @@
     <ClInclude Include="..\inc\fat32.h" />
     <ClInclude Include="..\inc\file.h" />
     <ClInclude Include="..\inc\label_11_char.h" />
+    <ClInclude Include="..\inc\libintl.h" />
     <ClInclude Include="..\inc\mbr_2000.h" />
     <ClInclude Include="..\inc\mbr_95b.h" />
     <ClInclude Include="..\inc\mbr_dos.h" />
@@ -59,6 +60,7 @@
     <ClInclude Include="..\inc\mbr_vista.h" />
     <ClInclude Include="..\inc\mbr_win7.h" />
     <ClInclude Include="..\inc\mbr_zero.h" />
+    <ClInclude Include="..\inc\nls.h" />
     <ClInclude Include="..\inc\ntfs.h" />
     <ClInclude Include="..\inc\partition_info.h" />
   </ItemGroup>
@@ -145,6 +147,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/analyze:stacksize32850 %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>28252;28253</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -166,6 +169,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/analyze:stacksize32850 %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>28252;28253</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <TargetMachine>MachineX86</TargetMachine>
@@ -182,6 +186,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/analyze:stacksize32850 %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>28252;28253</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -203,6 +208,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/analyze:stacksize32850 %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>28252;28253</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

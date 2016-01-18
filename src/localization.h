@@ -37,6 +37,9 @@
 // the translation will be ignored
 #define LOC_FRAMEWORK_VERSION  1
 
+#define MSG_RTF                 0x10000000
+#define MSG_MASK                0x0FFFFFFF
+
 #define luprint(msg) uprintf("%s(%d): " msg "\n", loc_filename, loc_line_nr)
 #define luprintf(msg, ...) uprintf("%s(%d): " msg "\n", loc_filename, loc_line_nr, __VA_ARGS__)
 
@@ -166,7 +169,7 @@ void _exit_localization(BOOL reinit);
 void apply_localization(int dlg_id, HWND hDlg);
 void reset_localization(int dlg_id);
 void free_dialog_list(void);
-char* lmprintf(int msg_id, ...);
+char* lmprintf(uint32_t msg_id, ...);
 BOOL get_supported_locales(const char* filename);
 BOOL get_loc_data_file(const char* filename, loc_cmd* lcmd);
 void free_locale_list(void);
@@ -174,3 +177,4 @@ loc_cmd* get_locale_from_lcid(int lcid, BOOL fallback);
 loc_cmd* get_locale_from_name(char* locale_name, BOOL fallback);
 void toggle_default_locale(void);
 const char* get_name_from_id(int id);
+WORD get_language_id(loc_cmd* lcmd);

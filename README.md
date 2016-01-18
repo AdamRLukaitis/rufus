@@ -6,15 +6,15 @@ Rufus: The Reliable USB Formatting Utility
 Features
 --------
 
-* Formats USB and Virtual HD drives to FAT/FAT32/NTFS/UDF/exFAT/ReFS
-* Creates DOS bootable USB drives, using [FreeDOS](http://www.freedos.org/) or MS-DOS
-* Creates BIOS or UEFI bootable drives, including UEFI bootable NTFS
-* Creates bootable drives from bootable ISOs (Windows, Linux, etc.)
-* Creates bootbale drives from bootable disk images, including compressed ones
-* Creates [Windows To Go](https://en.wikipedia.org/wiki/Windows_To_Go) drives
+* Format USB and Virtual HD drives to FAT/FAT32/NTFS/UDF/exFAT/ReFS
+* Create DOS bootable USB drives, using [FreeDOS](http://www.freedos.org/) or MS-DOS
+* Create BIOS or UEFI bootable drives, including [UEFI bootable NTFS](https://github.com/pbatard/uefi-ntfs)
+* Create bootable drives from bootable ISOs (Windows, Linux, etc.)
+* Create bootable drives from bootable disk images, including compressed ones
+* Create [Windows To Go](https://en.wikipedia.org/wiki/Windows_To_Go) drives
 * Twice as fast as Microsoft's USB/DVD tool or UNetbootin, on ISO -> USB creation (1)
-* Performs bad blocks checks, including detection of "fake" flash drives
-* Modern and familiar UI, with more than [30 languages natively supported](http://rufus.akeo.ie/translations)
+* Perform bad blocks checks, including detection of "fake" flash drives
+* Modern and familiar UI, with more than [35 languages natively supported](https://rufus.akeo.ie/translations)
 * Small footprint. No installation required.
 * Portable
 * 100% [Free Software](http://www.gnu.org/philosophy/free-sw.en.html) (GPL v3)
@@ -22,12 +22,12 @@ Features
 Compilation
 -----------
 
-Use either Visual Studio 2013, WDK 7.1 (Windows Driver Kit) or MinGW and then
+Use either Visual Studio 2015, WDK 7.1 (Windows Driver Kit) or MinGW and then
 invoke the `.sln`, `wdk_build.cmd` or `configure`/`make` respectively.
 
 #### Visual Studio
 Note that, since Rufus is an OSI compliant Open Source project, you are entitled to
-download and use the *freely available* [Visual Studio 2013 Community Edition]
+download and use the *freely available* [Visual Studio 2015 Community Edition]
 (http://www.visualstudio.com/products/visual-studio-community-vs) to
 build, run or develop for Rufus. As per the Visual Studio Community Edition license
 this applies regardless of whether you are an individual or a corporate user.
@@ -39,8 +39,8 @@ Additional information
 Rufus provides extensive information about what it is doing, either through
 its easily accessible log, or through the Windows debug facility.
 
-* Website: http://rufus.akeo.ie
-* FAQ: http://rufus.akeo.ie/FAQ
+* [Official Website](https://rufus.akeo.ie)
+* [FAQ](https://rufus.akeo.ie/FAQ)
 
 Enhancements/Bugs
 -----------------
